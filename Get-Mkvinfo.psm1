@@ -103,12 +103,12 @@ param([Parameter(Position=0, Mandatory=$true)] [string]$file)
         0..($mkvInfoFilt.Length-1) |%{$mkvInfoFilt[$_][0]=$mkvInfoFilt.Length-1-$_} # make line indexes continuous again
     }
 
-    $segments = $mkvInfoFilt | ?{ $_[2] -eq "Segment"} | %{$_[3]}
-    $tracks = $segments.("Segment tracks")[0]["A track"]
+    $segments = $mkvInfoFilt | ?{ $_[2] -eq "Segment:"} | %{$_[3]}
+    $tracks = $segments.("Tracks")[0]["track"]
 
     $segmentInfo = [PSCustomObject]@{
         UID = [byte[]]$(,@($segments.("Segment information").("Segment UID")[0] -split "\s" | %{[byte]$_}))
-        Duration = [TimeSpan]($segments.("Segment information").("Duration")[0] -creplace ".*?s \(([0-9]*:[0-9]{2}:[0-9]{2}.[0-9]{3})\)","`$1")
+        Duration = [TIMESPAN](($segments.("Segment information").("Duration")[0]).Substring(0,($segments.("Segment information").("Duration")[0]).Length-2))
         TrackCount = $tracks.Length
         Path = $file
     }
@@ -136,7 +136,8 @@ param([Parameter(Position=0, Mandatory=$true)] [string]$file)
             CodecID = $track.("Codec ID")[0]
         }
 
-        $trackInfo = AddNoteProperties -InputObject $trackInfo -Properties `                     @(
+        $trackInfo = AddNoteProperties -InputObject $trackInfo -Properties `
+                     @(
                         @{Name="CodecName"; Value=$codecInfo.name},
                         @{Name="CodecDesc"; Value=$codecInfo.desc},
                         @{Name="Name";      Value=$track.("Name")},
@@ -150,13 +151,14 @@ param([Parameter(Position=0, Mandatory=$true)] [string]$file)
 
         if($trackType -eq "video")
         {
-            $trackInfo = AddNoteProperties -InputObject $trackInfo -Properties `                @(
+            $trackInfo = AddNoteProperties -InputObject $trackInfo -Properties `
+                @(
                     @{Name="dResX";       Value=$track.("Video track").("Display width"); Type=[type]"int"},
                     @{Name="dResY";       Value=$track.("Video track").("Display height"); Type=[type]"int"},
                     @{Name="pResX";       Value=$track.("Video track").("Pixel width"); Type=[type]"int"},
                     @{Name="pResY";       Value=$track.("Video track").("Pixel height"); Type=[type]"int"},
                     @{Name="Interlaced";  Value=$track.("Video track").("Interlaced"); Type=[type]"bool"},
-                    @{Name="Framerate";   Value=$track.("Default duration"); RepFrom='[0-9]*.[0-9]*ms \(([0-9]*.[0-9]*) frames.*?\)'; RepTo='$1'; Type=[type]"float"},
+                    @{Name="Framerate";   Value=($track.("Default duration") | Select-String -Pattern "(\()(.+)( frames)").Matches.Groups[2].value; Type=[type]"float"},
                     @{Name="FourCC";      Value=$fourCC.code},
                     @{Name="FourCCName";  Value=$fourCC.name},
                     @{Name="FourCCDesc";  Value=$fourCC.desc},
@@ -166,7 +168,8 @@ param([Parameter(Position=0, Mandatory=$true)] [string]$file)
 
         if($trackType -eq "audio")
         {
-            $trackInfo = AddNoteProperties -InputObject $trackInfo -Properties `                @(
+            $trackInfo = AddNoteProperties -InputObject $trackInfo -Properties `
+                @(
                     @{Name="SampleRate";   Value=$track.("Audio track").("Sampling Frequency"); Type=[type]"int"},
                     @{Name="ChannelCount"; Value=$track.("Audio track").("Channels"); Type=[type]"int"},
                     @{Name="BitDepth";     Value=$track.("Audio track").("Bit Depth"); Type=[type]"int"},
